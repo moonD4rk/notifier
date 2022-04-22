@@ -1,2 +1,2 @@
-# notify
-notify is library to send message
+# notifier
+notifier is a Go library to send notification
