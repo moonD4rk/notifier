@@ -18,7 +18,7 @@ const (
 	DefaultBarkServer = "api.day.app"
 )
 
-func New(server, key string) *Provider {
+func New(key, server string) *Provider {
 	if key == "" {
 		return nil
 	}
