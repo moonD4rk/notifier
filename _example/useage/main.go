@@ -1,22 +1,3 @@
-# notifier
-notifier is a simple Go library to send notification to other applications.
-
-## Feature
-
-| Provider                                                     | Code |
-| ------------------------------------------------------------ | ---- |
-| [DingTalk](https://www.dingtalk.com/en)                      |      |
-| [Bark](https://apps.apple.com/us/app/bark-customed-notifications/id1403753865) |      |
-
-## Install
-
-`go get -u github.com/moond4rk/notifier`
-
-## Useage
-
-
-
-```go
 package main
 
 import (
@@ -45,7 +26,3 @@ func main() {
 		panic(err)
 	}
 }
-
-
-```
-
