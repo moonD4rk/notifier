@@ -3,10 +3,10 @@ notifier is a simple Go library to send notification to other applications.
 
 ## Feature
 
-| Provider                                                     | Code |
-| ------------------------------------------------------------ | ---- |
-| [DingTalk](https://www.dingtalk.com/en)                      |      |
-| [Bark](https://apps.apple.com/us/app/bark-customed-notifications/id1403753865) |      |
+| Provider                                                     | Code                                                         |
+| ------------------------------------------------------------ | ------------------------------------------------------------ |
+| [DingTalk](https://www.dingtalk.com/en)                      | [provider/bark](https://github.com/moonD4rk/notifier/tree/main/provider/bark) |
+| [Bark](https://apps.apple.com/us/app/bark-customed-notifications/id1403753865) | [provider/dingtalk](https://github.com/moonD4rk/notifier/tree/main/provider/dingtalk) |
 
 ## Install
 
@@ -21,7 +21,6 @@ package main
 
 import (
 	"github.com/moond4rk/notifier"
-	"github.com/moond4rk/notifier/provider/bark"
 )
 
 func main() {
@@ -29,7 +28,7 @@ func main() {
 		dingtalkToken  = "dingtalk_token"
 		dingtalkSecret = "dingtalk_secret"
 		barkKey        = "bark_key"
-		barkServer     = bark.DefaultBarkServer
+		barkServer     = notifier.DefaultBarkServer
 	)
 
 	notifier := notifier.New(
@@ -46,6 +45,6 @@ func main() {
 	}
 }
 
-
 ```
 
+<img src="https://raw.githubusercontent.com/moonD4rk/staticfiles/master/picture/notifier-screenshot.png" width="480" align="left"/>

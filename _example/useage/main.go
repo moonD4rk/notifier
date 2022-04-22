@@ -2,7 +2,6 @@ package main
 
 import (
 	"github.com/moond4rk/notifier"
-	"github.com/moond4rk/notifier/provider/bark"
 )
 
 func main() {
@@ -10,7 +9,7 @@ func main() {
 		dingtalkToken  = "dingtalk_token"
 		dingtalkSecret = "dingtalk_secret"
 		barkKey        = "bark_key"
-		barkServer     = bark.DefaultBarkServer
+		barkServer     = notifier.DefaultBarkServer
 	)
 
 	notifier := notifier.New(

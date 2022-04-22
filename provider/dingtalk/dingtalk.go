@@ -1,6 +1,8 @@
 package dingtalk
 
 import (
+	"fmt"
+
 	"github.com/CatchZeng/dingtalk/pkg/dingtalk"
 	"github.com/pkg/errors"
 )
@@ -22,6 +24,7 @@ func New(token, secret string) *provider {
 
 func (p *provider) Send(subject, content string) error {
 	client := dingtalk.NewClient(p.Token, p.Secret)
+	content = fmt.Sprintf("### %s\n>%s", subject, content)
 	msg := dingtalk.NewMarkdownMessage().SetMarkdown(subject, content)
 	_, _, err := client.Send(msg)
 	return errors.Wrap(err, "send dingtalk message failed")

@@ -9,15 +9,11 @@ import (
 )
 
 type Notifier struct {
-	Providers []Provider
-}
-
-type Provider interface {
-	Send(title, content string) error
+	Providers []provider
 }
 
 func New(options ...Option) *Notifier {
-	n := &Notifier{Providers: []Provider{}}
+	n := &Notifier{Providers: []provider{}}
 	for _, option := range options {
 		option(n)
 	}
@@ -29,11 +25,11 @@ var ErrSendNotification = errors.New("send notification")
 func (n *Notifier) Send(subject, content string) error {
 	var eg errgroup.Group
 
-	for _, service := range n.Providers {
-		if service != nil {
-			s := service
+	for _, provider := range n.Providers {
+		if provider != nil {
+			p := provider
 			eg.Go(func() error {
-				return s.Send(subject, content)
+				return p.Send(subject, content)
 			})
 		}
 	}
