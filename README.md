@@ -1,12 +1,17 @@
 # notifier
+
+![CI](https://github.com/moonD4rk/notifier/workflows/CI/badge.svg?branch=main)
+
 notifier is a simple Go library to send notification to other applications.
 
 ## Feature
 
 | Provider                                                     | Code                                                         |
 | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| [DingTalk](https://www.dingtalk.com/en)                      | [provider/bark](https://github.com/moonD4rk/notifier/tree/main/provider/bark) |
-| [Bark](https://apps.apple.com/us/app/bark-customed-notifications/id1403753865) | [provider/dingtalk](https://github.com/moonD4rk/notifier/tree/main/provider/dingtalk) |
+| [DingTalk](https://www.dingtalk.com/en)                      | [provider/dingtalk](https://github.com/moonD4rk/notifier/tree/main/provider/dingtalk) |
+| [Bark](https://apps.apple.com/us/app/bark-customed-notifications/id1403753865) | [provider/bark](https://github.com/moonD4rk/notifier/tree/main/provider/bark) |
+| [Lark](https://www.larksuite.com/en_us/)                     | [provider/lark](https://github.com/moonD4rk/notifier/tree/main/provider/lark) |
+| [Feishu](https://www.feishu.cn/)                             | [provider/feishu](https://github.com/moonD4rk/notifier/tree/main/provider/feishu) |
 
 ## Install
 
@@ -20,20 +25,27 @@ notifier is a simple Go library to send notification to other applications.
 package main
 
 import (
+	"os"
+
 	"github.com/moond4rk/notifier"
 )
 
 func main() {
 	var (
-		dingtalkToken  = "dingtalk_token"
-		dingtalkSecret = "dingtalk_secret"
-		barkKey        = "bark_key"
+		dingtalkToken  = os.Getenv("dingtalk_token")
+		dingtalkSecret = os.Getenv("dingtalk_secret")
+		barkKey        = os.Getenv("bark_key")
 		barkServer     = notifier.DefaultBarkServer
+		feishuToken    = os.Getenv("feishu_token")
+		feishuSecret   = os.Getenv("feishu_secret")
+		larkToken      = os.Getenv("feishu_token")
+		larkSecret     = os.Getenv("feishu_secret")
 	)
-
 	notifier := notifier.New(
 		notifier.WithDingTalk(dingtalkToken, dingtalkSecret),
 		notifier.WithBark(barkKey, barkServer),
+		notifier.WithFeishu(feishuToken, feishuSecret),
+		notifier.WithLark(larkToken, larkSecret),
 	)
 
 	var (
@@ -44,7 +56,6 @@ func main() {
 		panic(err)
 	}
 }
-
 ```
 
 <img src="https://raw.githubusercontent.com/moonD4rk/staticfiles/master/picture/notifier-screenshot.png" width="480" align="left"/>
