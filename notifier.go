@@ -6,6 +6,7 @@ import (
 
 	"github.com/moond4rk/notifier/provider/bark"
 	"github.com/moond4rk/notifier/provider/dingtalk"
+	"github.com/moond4rk/notifier/provider/lark"
 )
 
 type Notifier struct {
@@ -26,12 +27,10 @@ func (n *Notifier) Send(subject, content string) error {
 	var eg errgroup.Group
 
 	for _, provider := range n.Providers {
-		if provider != nil {
-			p := provider
-			eg.Go(func() error {
-				return p.Send(subject, content)
-			})
-		}
+		p := provider
+		eg.Go(func() error {
+			return p.Send(subject, content)
+		})
 	}
 	err := eg.Wait()
 
@@ -45,15 +44,28 @@ func (n *Notifier) Send(subject, content string) error {
 type Option func(p *Notifier)
 
 func WithDingTalk(token, secret string) Option {
-	ding := dingtalk.New(token, secret)
-	return func(p *Notifier) {
-		p.Providers = append(p.Providers, ding)
+	d := dingtalk.New(token, secret)
+	return func(n *Notifier) {
+		if d != nil {
+			n.Providers = append(n.Providers, d)
+		}
 	}
 }
 
 func WithBark(key, server string) Option {
-	bark := bark.New(key, server)
-	return func(p *Notifier) {
-		p.Providers = append(p.Providers, bark)
+	b := bark.New(key, server)
+	return func(n *Notifier) {
+		if b != nil {
+			n.Providers = append(n.Providers, b)
+		}
+	}
+}
+
+func WithLark(token, secret string) Option {
+	l := lark.New(token, secret)
+	return func(n *Notifier) {
+		if l != nil {
+			n.Providers = append(n.Providers, l)
+		}
 	}
 }

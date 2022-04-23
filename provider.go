@@ -1,5 +1,5 @@
 package notifier
 
 type provider interface {
-	Send(title, content string) error
+	Send(subject, content string) error
 }

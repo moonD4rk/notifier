@@ -12,7 +12,7 @@ notifier is a simple Go library to send notification to other applications.
 
 `go get -u github.com/moond4rk/notifier`
 
-## Useage
+## Usage
 
 
 
