@@ -6,6 +6,7 @@ import (
 
 	"github.com/moond4rk/notifier/provider/bark"
 	"github.com/moond4rk/notifier/provider/dingtalk"
+	"github.com/moond4rk/notifier/provider/feishu"
 	"github.com/moond4rk/notifier/provider/lark"
 )
 
@@ -63,6 +64,15 @@ func WithBark(key, server string) Option {
 
 func WithLark(token, secret string) Option {
 	l := lark.New(token, secret)
+	return func(n *Notifier) {
+		if l != nil {
+			n.Providers = append(n.Providers, l)
+		}
+	}
+}
+
+func WithFeishu(token, secret string) Option {
+	l := feishu.New(token, secret)
 	return func(n *Notifier) {
 		if l != nil {
 			n.Providers = append(n.Providers, l)

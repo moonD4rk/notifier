@@ -11,10 +11,6 @@ import (
 	"time"
 )
 
-func LarkSign(secret string) string {
-	return ""
-}
-
 const defaultDingTalkURL = `https://oapi.dingtalk.com/robot/send`
 
 func DingTalkURL(token, secret string) (string, error) {
@@ -28,7 +24,7 @@ func DingTalkURL(token, secret string) (string, error) {
 		return u.String(), nil
 	}
 
-	sign, err := sign(timestamp, secret)
+	sign, err := dingTalkSign(timestamp, secret)
 	if err != nil {
 		u.RawQuery = value.Encode()
 		return u.String(), err
@@ -40,7 +36,7 @@ func DingTalkURL(token, secret string) (string, error) {
 	return u.String(), nil
 }
 
-func sign(timestamp, secret string) (string, error) {
+func dingTalkSign(timestamp, secret string) (string, error) {
 	stringToSign := fmt.Sprintf("%s\n%s", timestamp, secret)
 	h := hmac.New(sha256.New, []byte(secret))
 	if _, err := io.WriteString(h, stringToSign); err != nil {
