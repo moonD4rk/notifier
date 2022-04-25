@@ -14,8 +14,8 @@ func main() {
 		barkServer     = notifier.DefaultBarkServer
 		feishuToken    = os.Getenv("feishu_token")
 		feishuSecret   = os.Getenv("feishu_secret")
-		larkToken      = os.Getenv("feishu_token")
-		larkSecret     = os.Getenv("feishu_secret")
+		larkToken      = os.Getenv("lark_token")
+		larkSecret     = os.Getenv("lark_secret")
 	)
 	notifier := notifier.New(
 		notifier.WithDingTalk(dingtalkToken, dingtalkSecret),

@@ -42,37 +42,45 @@ func larkSign(timestamp, secret string) (string, error) {
 }
 
 func buildLarkPostData(subject, content, timestamp, sign string) ([]byte, error) {
-	type postData struct {
-		Timestamp string `json:"timestamp"`
-		Sign      string `json:"sign,omitempty"`
-		MsgType   string `json:"msg_type"`
-		Content   struct {
-			Post struct {
-				ZhCn struct {
-					Title   string `json:"title"`
-					Content [][]struct {
-						Tag  string `json:"tag"`
-						Text string `json:"text,omitempty"`
-					} `json:"content"`
-				} `json:"zh_cn"`
-			} `json:"post"`
-		} `json:"content"`
+	msg := contentMsg{
+		Tag:  "text",
+		Text: content,
 	}
 	pd := &postData{
 		Timestamp: timestamp,
 		Sign:      sign,
 		MsgType:   "post",
 	}
-	pd.Content.Post.ZhCn.Title = subject
-	pd.Content.Post.ZhCn.Content = append(pd.Content.Post.ZhCn.Content, []struct {
-		Tag  string `json:"tag"`
-		Text string `json:"text,omitempty"`
-	}{
-		{Tag: "text", Text: content},
-	})
+	pd.Content.Post.ZhCN.Title = subject
+	pd.Content.Post.ZhCN.Content = append(pd.Content.Post.ZhCN.Content, []contentMsg{msg})
 	data, err := json.Marshal(pd)
 	if err != nil {
 		return nil, err
 	}
 	return data, err
+}
+
+type postData struct {
+	Timestamp string  `json:"timestamp"`
+	Sign      string  `json:"sign,omitempty"`
+	MsgType   string  `json:"msg_type"`
+	Content   content `json:"content"`
+}
+
+type content struct {
+	Post post `json:"post"`
+}
+
+type zhCN struct {
+	Title   string         `json:"title"`
+	Content [][]contentMsg `json:"content"`
+}
+
+type post struct {
+	ZhCN zhCN `json:"zh_cn,omitempty"`
+}
+
+type contentMsg struct {
+	Tag  string `json:"tag"`
+	Text string `json:"text"`
 }
