@@ -8,6 +8,7 @@ import (
 	"github.com/moond4rk/notifier/provider/dingtalk"
 	"github.com/moond4rk/notifier/provider/feishu"
 	"github.com/moond4rk/notifier/provider/lark"
+	"github.com/moond4rk/notifier/provider/serverchan"
 )
 
 type Notifier struct {
@@ -76,6 +77,15 @@ func WithFeishu(token, secret string) Option {
 	return func(n *Notifier) {
 		if l != nil {
 			n.Providers = append(n.Providers, l)
+		}
+	}
+}
+
+func WithServerChan(userID, sendKey string) Option {
+	s := serverchan.New(userID, sendKey)
+	return func(n *Notifier) {
+		if s != nil {
+			n.Providers = append(n.Providers, s)
 		}
 	}
 }
