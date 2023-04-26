@@ -1,4 +1,4 @@
-package encrypter
+package crypto
 
 import (
 	"crypto/hmac"

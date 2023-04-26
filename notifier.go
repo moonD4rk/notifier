@@ -1,14 +1,9 @@
 package notifier
 
 import (
-	"github.com/pkg/errors"
-	"golang.org/x/sync/errgroup"
+	"errors"
 
-	"github.com/moond4rk/notifier/provider/bark"
-	"github.com/moond4rk/notifier/provider/dingtalk"
-	"github.com/moond4rk/notifier/provider/feishu"
-	"github.com/moond4rk/notifier/provider/lark"
-	"github.com/moond4rk/notifier/provider/serverchan"
+	"golang.org/x/sync/errgroup"
 )
 
 type Notifier struct {
@@ -24,10 +19,13 @@ func New(options ...Option) *Notifier {
 }
 
 var ErrSendNotification = errors.New("send notification")
+var ErrNoProvider = errors.New("no provider, please check your config")
 
 func (n *Notifier) Send(subject, content string) error {
+	if len(n.Providers) == 0 {
+		return ErrNoProvider
+	}
 	var eg errgroup.Group
-
 	for _, provider := range n.Providers {
 		p := provider
 		eg.Go(func() error {
@@ -37,55 +35,8 @@ func (n *Notifier) Send(subject, content string) error {
 	err := eg.Wait()
 
 	if err != nil {
-		err = errors.Wrap(ErrSendNotification, err.Error())
+		err = errors.Join(ErrSendNotification, err)
 	}
 
 	return err
-}
-
-type Option func(p *Notifier)
-
-func WithDingTalk(token, secret string) Option {
-	d := dingtalk.New(token, secret)
-	return func(n *Notifier) {
-		if d != nil {
-			n.Providers = append(n.Providers, d)
-		}
-	}
-}
-
-func WithBark(key, server string) Option {
-	b := bark.New(key, server)
-	return func(n *Notifier) {
-		if b != nil {
-			n.Providers = append(n.Providers, b)
-		}
-	}
-}
-
-func WithLark(token, secret string) Option {
-	l := lark.New(token, secret)
-	return func(n *Notifier) {
-		if l != nil {
-			n.Providers = append(n.Providers, l)
-		}
-	}
-}
-
-func WithFeishu(token, secret string) Option {
-	l := feishu.New(token, secret)
-	return func(n *Notifier) {
-		if l != nil {
-			n.Providers = append(n.Providers, l)
-		}
-	}
-}
-
-func WithServerChan(userID, sendKey string) Option {
-	s := serverchan.New(userID, sendKey)
-	return func(n *Notifier) {
-		if s != nil {
-			n.Providers = append(n.Providers, s)
-		}
-	}
 }

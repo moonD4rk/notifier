@@ -4,23 +4,21 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
-
-	"github.com/pkg/errors"
 )
 
-type provider struct {
+type Provider struct {
 	Server string
 	Key    string
 	url    string
 }
 
-func New(key, server string) *provider {
+func New(key, server string) *Provider {
 	if key == "" {
 		return nil
 	}
-	p := &provider{
+	p := &Provider{
 		Server: server,
 		Key:    key,
 	}
@@ -32,7 +30,7 @@ func New(key, server string) *provider {
 	return p
 }
 
-func (p *provider) Send(subject, content string) error {
+func (p *Provider) Send(subject, content string) error {
 	type postData struct {
 		DeviceKey string `json:"device_key"`
 		Title     string `json:"title"`
@@ -56,9 +54,9 @@ func (p *provider) Send(subject, content string) error {
 
 	resp, err := http.Post(p.url, "application/json; charset=utf-8", bytes.NewReader(data))
 	if err != nil {
-		return errors.Wrap(err, "send bark request failed")
+		return fmt.Errorf("send bark request failed %w", err)
 	}
-	result, err := ioutil.ReadAll(resp.Body)
+	result, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
@@ -66,7 +64,7 @@ func (p *provider) Send(subject, content string) error {
 
 	if resp.StatusCode != http.StatusOK {
 		err = fmt.Errorf("statusCode: %d, body: %v", resp.StatusCode, string(result))
-		return errors.Wrap(err, "send bark message failed")
+		return fmt.Errorf("send bark message failed %w", err)
 	}
 	return nil
 }

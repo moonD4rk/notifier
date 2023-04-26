@@ -4,40 +4,38 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 
-	"github.com/pkg/errors"
-
-	"github.com/moond4rk/notifier/internal/encrypter"
+	"github.com/moond4rk/notifier/internal/crypto"
 )
 
-type provider struct {
+type Provider struct {
 	Token  string
 	Secret string
 }
 
-func New(token, secret string) *provider {
+func New(token, secret string) *Provider {
 	if token == "" {
 		return nil
 	}
-	return &provider{
+	return &Provider{
 		Token:  token,
 		Secret: secret,
 	}
 }
 
-func (p *provider) Send(subject, content string) error {
-	data, err := encrypter.LarkData(subject, content, p.Secret)
+func (p *Provider) Send(subject, content string) error {
+	data, err := crypto.LarkData(subject, content, p.Secret)
 	url := fmt.Sprintf("https://open.larksuite.com/open-apis/bot/v2/hook/%s", p.Token)
 	if err != nil {
-		return errors.Wrap(err, "build dingtalk url error")
+		return fmt.Errorf("build dingtalk url %w", err)
 	}
 	resp, err := http.Post(url, "application/json; charset=utf-8", bytes.NewReader(data))
 	if err != nil {
-		return errors.Wrap(err, "send dingtalk request failed")
+		return fmt.Errorf("send dingtalk request failed %w", err)
 	}
-	result, err := ioutil.ReadAll(resp.Body)
+	result, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
@@ -54,12 +52,11 @@ func (p *provider) Send(subject, content string) error {
 
 	var r response
 	if err = json.Unmarshal(result, &r); err != nil {
-		return errors.Wrap(err, "parse lark response failed")
+		return fmt.Errorf("parse lark response failed %w", err)
 	}
 
 	if r.StatusMessage != "success" {
-		err = fmt.Errorf("body: %v", string(result))
-		return errors.Wrap(err, "lark message response error")
+		return fmt.Errorf("lark message response %w", fmt.Errorf("body: %v", string(result)))
 	}
-	return errors.Wrap(err, "send lark message failed")
+	return nil
 }

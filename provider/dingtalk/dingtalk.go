@@ -4,43 +4,41 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 
-	"github.com/pkg/errors"
-
-	"github.com/moond4rk/notifier/internal/encrypter"
+	"github.com/moond4rk/notifier/internal/crypto"
 )
 
-type provider struct {
+type Provider struct {
 	Token  string `yaml:"token,omitempty"`
 	Secret string `yaml:"secret,omitempty"`
 }
 
-func New(token, secret string) *provider {
+func New(token, secret string) *Provider {
 	if token == "" {
 		return nil
 	}
-	return &provider{
+	return &Provider{
 		Token:  token,
 		Secret: secret,
 	}
 }
 
-func (p *provider) Send(subject, content string) error {
+func (p *Provider) Send(subject, content string) error {
 	data, err := buildPostData(subject, content)
 	if err != nil {
-		return errors.Wrap(err, "failed to create message")
+		return fmt.Errorf("failed to create message %w", err)
 	}
-	url, err := encrypter.DingTalkURL(p.Token, p.Secret)
+	url, err := crypto.DingTalkURL(p.Token, p.Secret)
 	if err != nil {
-		return errors.Wrap(err, "build dingtalk url error")
+		return fmt.Errorf("build dingtalk url error %w", err)
 	}
 	resp, err := http.Post(url, "application/json; charset=utf-8", bytes.NewReader(data))
 	if err != nil {
-		return errors.Wrap(err, "send dingtalk request failed")
+		return fmt.Errorf("send dingtalk request failed %w", err)
 	}
-	result, err := ioutil.ReadAll(resp.Body)
+	result, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
@@ -48,9 +46,9 @@ func (p *provider) Send(subject, content string) error {
 
 	if resp.StatusCode != http.StatusOK {
 		err = fmt.Errorf("statusCode: %d, body: %v", resp.StatusCode, string(result))
-		return errors.Wrap(err, "dingtalk message response error")
+		return fmt.Errorf("dingtalk message response error %w", err)
 	}
-	return errors.Wrap(err, "send dingtalk message failed")
+	return nil
 }
 
 func buildPostData(subject, content string) ([]byte, error) {
