@@ -18,8 +18,10 @@ func New(options ...Option) *Notifier {
 	return n
 }
 
-var ErrSendNotification = errors.New("send notification")
-var ErrNoProvider = errors.New("no provider, please check your config")
+var (
+	ErrSendNotification = errors.New("send notification")
+	ErrNoProvider       = errors.New("no provider, please check your config")
+)
 
 func (n *Notifier) Send(subject, content string) error {
 	if len(n.Providers) == 0 {
@@ -33,7 +35,6 @@ func (n *Notifier) Send(subject, content string) error {
 		})
 	}
 	err := eg.Wait()
-
 	if err != nil {
 		err = errors.Join(ErrSendNotification, err)
 	}

@@ -23,9 +23,7 @@ func New(userID, sendKey string) *Provider {
 }
 
 func (p *Provider) Send(subject, content string) error {
-	var (
-		defaultServer = "sctapi.ftqq.com"
-	)
+	defaultServer := "sctapi.ftqq.com"
 	url := fmt.Sprintf("https://%s/%s.send", defaultServer, p.SendKey)
 	type postData struct {
 		Text string `json:"text"`
