@@ -1,0 +1,7 @@
+# See https://github.com/crate-ci/typos/blob/master/docs/reference.md to configure typos
+[default.extend-words]
+Encrypter = "Encrypter"
+Decrypter = "Decrypter"
+caf = "caf"
+[files]
+extend-exclude = ["go.mod", "go.sum"]
