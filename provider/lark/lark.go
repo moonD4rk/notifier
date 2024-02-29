@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 
 	"github.com/moond4rk/notifier/internal/crypto"
@@ -27,11 +28,11 @@ func New(token, secret string) *Provider {
 
 func (p *Provider) Send(subject, content string) error {
 	data, err := crypto.LarkData(subject, content, p.Secret)
-	url := fmt.Sprintf("https://open.larksuite.com/open-apis/bot/v2/hook/%s", p.Token)
+	link := fmt.Sprintf("https://open.larksuite.com/open-apis/bot/v2/hook/%s", p.Token)
 	if err != nil {
-		return fmt.Errorf("build dingtalk url %w", err)
+		return fmt.Errorf("build dingtalk link %w", err)
 	}
-	resp, err := http.Post(url, "application/json; charset=utf-8", bytes.NewReader(data))
+	resp, err := http.Post(link, "application/json; charset=utf-8", bytes.NewReader(data))
 	if err != nil {
 		return fmt.Errorf("send dingtalk request failed %w", err)
 	}
@@ -39,7 +40,13 @@ func (p *Provider) Send(subject, content string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		// Close the body and check for errors
+		if cerr := resp.Body.Close(); cerr != nil {
+			// Handle the error, log it, etc. Here we're just logging.
+			log.Printf("failed to close response body: %v", cerr)
+		}
+	}()
 
 	type response struct {
 		Code          int         `json:"code"`

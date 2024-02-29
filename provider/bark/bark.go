@@ -5,13 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 )
 
 type Provider struct {
 	Server string
 	Key    string
-	url    string
+	link   string
 }
 
 func New(key, server string) *Provider {
@@ -23,9 +24,9 @@ func New(key, server string) *Provider {
 		Key:    key,
 	}
 	if server != "" {
-		p.url = fmt.Sprintf("https://%s/push", server)
+		p.link = fmt.Sprintf("https://%s/push", server)
 	} else {
-		p.url = fmt.Sprintf("https://%s/push", "api.day.app")
+		p.link = fmt.Sprintf("https://%s/push", "api.day.app")
 	}
 	return p
 }
@@ -39,7 +40,7 @@ func (p *Provider) Send(subject, content string) error {
 		Sound     string `json:"sound,omitempty"`
 		Icon      string `json:"icon,omitempty"`
 		Group     string `json:"group,omitempty"`
-		URL       string `json:"url,omitempty"`
+		URL       string `json:"link,omitempty"`
 	}
 	pd := &postData{
 		DeviceKey: p.Key,
@@ -52,7 +53,7 @@ func (p *Provider) Send(subject, content string) error {
 		return err
 	}
 
-	resp, err := http.Post(p.url, "application/json; charset=utf-8", bytes.NewReader(data))
+	resp, err := http.Post(p.link, "application/json; charset=utf-8", bytes.NewReader(data))
 	if err != nil {
 		return fmt.Errorf("send bark request failed %w", err)
 	}
@@ -60,7 +61,13 @@ func (p *Provider) Send(subject, content string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		// Close the body and check for errors
+		if cerr := resp.Body.Close(); cerr != nil {
+			// Handle the error, log it, etc. Here we're just logging.
+			log.Printf("failed to close response body: %v", cerr)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		err = fmt.Errorf("statusCode: %d, body: %v", resp.StatusCode, string(result))
