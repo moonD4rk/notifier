@@ -6,81 +6,64 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
 )
 
-// LarkData generate sign for lark
-func LarkData(subject, content, secret string) ([]byte, error) {
-	var (
-		sign string
-		err  error
-	)
-	timestamp := fmt.Sprintf("%d", time.Now().Unix())
-	if secret != "" {
-		sign, err = larkSign(timestamp, secret)
-		if err != nil {
-			return nil, err
-		}
-	}
-	data, err := buildLarkPostData(subject, content, timestamp, sign)
-	if err != nil {
-		return nil, err
-	}
-	return data, nil
-}
-
-func larkSign(timestamp, secret string) (string, error) {
-	key := fmt.Sprintf("%s\n%s", timestamp, secret)
-	var data []byte
+// LarkSign returns the signature used by signed Lark/Feishu webhooks.
+// timestampSec is Unix seconds; secret is the bot secret.
+//
+// See https://open.larksuite.com/document/uAjLw4CM/ukTMukTMukTM/bot-v2/use-custom-bots-in-a-group/signature-verification
+// for the format.
+func LarkSign(timestampSec int64, secret string) string {
+	key := fmt.Sprintf("%d\n%s", timestampSec, secret)
 	h := hmac.New(sha256.New, []byte(key))
-	_, err := h.Write(data)
-	if err != nil {
-		return "", err
-	}
-	signature := base64.StdEncoding.EncodeToString(h.Sum(nil))
-	return signature, nil
+	return base64.StdEncoding.EncodeToString(h.Sum(nil))
 }
 
-func buildLarkPostData(subject, content, timestamp, sign string) ([]byte, error) {
-	msg := contentMsg{
-		Tag:  "text",
-		Text: content,
+// LarkPayload builds the JSON body for a Lark/Feishu webhook message. If
+// secret is non-empty, timestamp + sign fields are included for signature
+// verification.
+func LarkPayload(subject, content, secret string, now time.Time) ([]byte, error) {
+	timestamp := strconv.FormatInt(now.Unix(), 10)
+	var sign string
+	if secret != "" {
+		sign = LarkSign(now.Unix(), secret)
 	}
-	pd := &postData{
+	pd := &larkPostData{
 		Timestamp: timestamp,
 		Sign:      sign,
 		MsgType:   "post",
 	}
 	pd.Content.Post.ZhCN.Title = subject
-	pd.Content.Post.ZhCN.Content = append(pd.Content.Post.ZhCN.Content, []contentMsg{msg})
-	data, err := json.Marshal(pd)
-	if err != nil {
-		return nil, err
-	}
-	return data, err
+	pd.Content.Post.ZhCN.Content = append(
+		pd.Content.Post.ZhCN.Content,
+		[]larkContentMsg{{Tag: "text", Text: content}},
+	)
+	return json.Marshal(pd)
 }
 
-type postData struct {
-	Timestamp string  `json:"timestamp"`
-	Sign      string  `json:"sign,omitempty"`
-	MsgType   string  `json:"msg_type"`
-	Content   content `json:"content"`
+type larkPostData struct {
+	Timestamp string      `json:"timestamp"`
+	Sign      string      `json:"sign,omitempty"`
+	MsgType   string      `json:"msg_type"`
+	Content   larkContent `json:"content"`
 }
 
-type content struct {
-	Post post `json:"post"`
+type larkContent struct {
+	Post larkPost `json:"post"`
 }
 
-type zhCN struct {
-	Title   string         `json:"title"`
-	Content [][]contentMsg `json:"content"`
+type larkPost struct {
+	ZhCN larkZhCN `json:"zh_cn,omitempty"`
 }
 
-type post struct {
-	ZhCN zhCN `json:"zh_cn,omitempty"`
+type larkZhCN struct {
+	Title   string             `json:"title"`
+	Content [][]larkContentMsg `json:"content"`
 }
 
-type contentMsg struct {
+type larkContentMsg struct {
 	Tag  string `json:"tag"`
 	Text string `json:"text"`
 }

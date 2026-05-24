@@ -1,69 +1,74 @@
+// Package feishu implements a notifier.Provider for Feishu custom bots
+// (https://www.feishu.cn/).
 package feishu
 
 import (
-	"bytes"
-	"encoding/json"
+	"context"
 	"fmt"
-	"io"
-	"log"
 	"net/http"
+	"time"
 
 	"github.com/moond4rk/notifier/internal/crypto"
+	"github.com/moond4rk/notifier/internal/httpx"
+	"github.com/moond4rk/notifier/provider"
 )
 
-type Provider struct {
-	Token  string
-	Secret string
+const defaultEndpoint = "https://open.feishu.cn/open-apis/bot/v2/hook"
+
+// Config configures a Feishu provider. Token is the webhook token;
+// Secret is only required when signature verification is enabled.
+type Config struct {
+	Token      string
+	Secret     string
+	HTTPClient *http.Client
 }
 
-func New(token, secret string) *Provider {
-	if token == "" {
+// Provider sends messages to a Feishu group chat via a custom webhook.
+type Provider struct {
+	cfg      Config
+	endpoint string
+	client   *httpx.Client
+	now      func() time.Time
+}
+
+// New returns a Provider, or nil if cfg.Token is empty.
+func New(cfg Config) *Provider {
+	if cfg.Token == "" {
 		return nil
 	}
 	return &Provider{
-		Token:  token,
-		Secret: secret,
+		cfg:      cfg,
+		endpoint: defaultEndpoint,
+		client:   httpx.New(cfg.HTTPClient),
+		now:      time.Now,
 	}
 }
 
-func (p *Provider) Send(subject, content string) error {
-	data, err := crypto.LarkData(subject, content, p.Secret)
+// Name implements notifier.Provider.
+func (p *Provider) Name() string { return "feishu" }
 
-	link := fmt.Sprintf("https://open.feishu.cn/open-apis/bot/v2/hook/%s", p.Token)
-	if err != nil {
-		return fmt.Errorf("build dingtalk link error %w", err)
-	}
-	resp, err := http.Post(link, "application/json; charset=utf-8", bytes.NewReader(data))
-	if err != nil {
-		return fmt.Errorf("send dingtalk request failed %w", err)
-	}
-	result, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		// Close the body and check for errors
-		if cerr := resp.Body.Close(); cerr != nil {
-			// Handle the error, log it, etc. Here we're just logging.
-			log.Printf("failed to close response body: %v", cerr)
-		}
-	}()
-	type response struct {
-		Code          int         `json:"code"`
-		Data          struct{}    `json:"data"`
-		Msg           string      `json:"msg"`
-		Extra         interface{} `json:"Extra"`
-		StatusCode    int         `json:"StatusCode"`
-		StatusMessage string      `json:"StatusMessage"`
-	}
+type response struct {
+	Code          int    `json:"code"`
+	Msg           string `json:"msg"`
+	StatusCode    int    `json:"StatusCode"`
+	StatusMessage string `json:"StatusMessage"`
+}
 
-	var r response
-	if err = json.Unmarshal(result, &r); err != nil {
-		return fmt.Errorf("parse feishu response failed %w", err)
+// Send implements notifier.Provider.
+func (p *Provider) Send(ctx context.Context, msg provider.Message) error {
+	data, err := crypto.LarkPayload(msg.Subject, msg.Content, p.cfg.Secret, p.now())
+	if err != nil {
+		return fmt.Errorf("build feishu payload: %w", err)
 	}
+	link := fmt.Sprintf("%s/%s", p.endpoint, p.cfg.Token)
 
-	if r.StatusMessage != "success" {
-		return fmt.Errorf("feishu message response error %w", fmt.Errorf("body: %v", string(result)))
+	var resp response
+	if err := p.client.PostJSON(ctx, link, data, &resp); err != nil {
+		return fmt.Errorf("send feishu: %w", err)
+	}
+	if resp.StatusMessage != "success" {
+		return fmt.Errorf("feishu: %w (status=%q msg=%q code=%d)",
+			httpx.ErrUnexpectedStatus, resp.StatusMessage, resp.Msg, resp.Code)
 	}
 	return nil
 }

@@ -1,69 +1,74 @@
+// Package lark implements a notifier.Provider for Lark custom bots
+// (https://www.larksuite.com/).
 package lark
 
 import (
-	"bytes"
-	"encoding/json"
+	"context"
 	"fmt"
-	"io"
-	"log"
 	"net/http"
+	"time"
 
 	"github.com/moond4rk/notifier/internal/crypto"
+	"github.com/moond4rk/notifier/internal/httpx"
+	"github.com/moond4rk/notifier/provider"
 )
 
-type Provider struct {
-	Token  string
-	Secret string
+const defaultEndpoint = "https://open.larksuite.com/open-apis/bot/v2/hook"
+
+// Config configures a Lark provider. Token is the webhook token; Secret
+// is only required when the bot has signature verification enabled.
+type Config struct {
+	Token      string
+	Secret     string
+	HTTPClient *http.Client
 }
 
-func New(token, secret string) *Provider {
-	if token == "" {
+// Provider sends messages to a Lark group chat via a custom webhook.
+type Provider struct {
+	cfg      Config
+	endpoint string
+	client   *httpx.Client
+	now      func() time.Time
+}
+
+// New returns a Provider, or nil if cfg.Token is empty.
+func New(cfg Config) *Provider {
+	if cfg.Token == "" {
 		return nil
 	}
 	return &Provider{
-		Token:  token,
-		Secret: secret,
+		cfg:      cfg,
+		endpoint: defaultEndpoint,
+		client:   httpx.New(cfg.HTTPClient),
+		now:      time.Now,
 	}
 }
 
-func (p *Provider) Send(subject, content string) error {
-	data, err := crypto.LarkData(subject, content, p.Secret)
-	link := fmt.Sprintf("https://open.larksuite.com/open-apis/bot/v2/hook/%s", p.Token)
-	if err != nil {
-		return fmt.Errorf("build dingtalk link %w", err)
-	}
-	resp, err := http.Post(link, "application/json; charset=utf-8", bytes.NewReader(data))
-	if err != nil {
-		return fmt.Errorf("send dingtalk request failed %w", err)
-	}
-	result, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		// Close the body and check for errors
-		if cerr := resp.Body.Close(); cerr != nil {
-			// Handle the error, log it, etc. Here we're just logging.
-			log.Printf("failed to close response body: %v", cerr)
-		}
-	}()
+// Name implements notifier.Provider.
+func (p *Provider) Name() string { return "lark" }
 
-	type response struct {
-		Code          int         `json:"code"`
-		Data          struct{}    `json:"data"`
-		Msg           string      `json:"msg"`
-		Extra         interface{} `json:"Extra"`
-		StatusCode    int         `json:"StatusCode"`
-		StatusMessage string      `json:"StatusMessage"`
-	}
+type response struct {
+	Code          int    `json:"code"`
+	Msg           string `json:"msg"`
+	StatusCode    int    `json:"StatusCode"`
+	StatusMessage string `json:"StatusMessage"`
+}
 
-	var r response
-	if err = json.Unmarshal(result, &r); err != nil {
-		return fmt.Errorf("parse lark response failed %w", err)
+// Send implements notifier.Provider.
+func (p *Provider) Send(ctx context.Context, msg provider.Message) error {
+	data, err := crypto.LarkPayload(msg.Subject, msg.Content, p.cfg.Secret, p.now())
+	if err != nil {
+		return fmt.Errorf("build lark payload: %w", err)
 	}
+	link := fmt.Sprintf("%s/%s", p.endpoint, p.cfg.Token)
 
-	if r.StatusMessage != "success" {
-		return fmt.Errorf("lark message response %w", fmt.Errorf("body: %v", string(result)))
+	var resp response
+	if err := p.client.PostJSON(ctx, link, data, &resp); err != nil {
+		return fmt.Errorf("send lark: %w", err)
+	}
+	if resp.StatusMessage != "success" {
+		return fmt.Errorf("lark: %w (status=%q msg=%q code=%d)",
+			httpx.ErrUnexpectedStatus, resp.StatusMessage, resp.Msg, resp.Code)
 	}
 	return nil
 }
