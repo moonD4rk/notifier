@@ -17,7 +17,7 @@ jobs:
       - name: Set Golang
         uses: actions/setup-go@v5
         with:
-          go-version: "1.22.x"
+          go-version: "1.26.x"
           cache: false
 
       - name: Check spelling with custom config file
@@ -26,6 +26,6 @@ jobs:
           config: ./.typos.toml
 
       - name: Lint
-        uses: golangci/golangci-lint-action@v3
+        uses: golangci/golangci-lint-action@v6
         with:
           version: latest

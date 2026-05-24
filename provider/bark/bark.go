@@ -1,77 +1,101 @@
+// Package bark implements a notifier.Provider for the Bark iOS app
+// (https://day.app/).
 package bark
 
 import (
-	"bytes"
-	"encoding/json"
+	"context"
 	"fmt"
-	"io"
-	"log"
 	"net/http"
+
+	"github.com/moond4rk/notifier/internal/httpx"
+	"github.com/moond4rk/notifier/provider"
 )
 
-type Provider struct {
-	Server string
-	Key    string
-	link   string
+// DefaultServer is the host of the public Bark server.
+const DefaultServer = "api.day.app"
+
+// Extras keys consumed by this provider.
+const (
+	KeySound = "bark.sound"
+	KeyIcon  = "bark.icon"
+	KeyGroup = "bark.group"
+	KeyURL   = "bark.url"
+	KeyBadge = "bark.badge"
+)
+
+const defaultSound = "alarm.caf"
+
+// Config configures a Bark provider. Key (the device key) is required;
+// Server and HTTPClient are optional.
+type Config struct {
+	Key        string
+	Server     string
+	HTTPClient *http.Client
 }
 
-func New(key, server string) *Provider {
-	if key == "" {
+// Provider sends messages to a Bark device via the /push endpoint.
+type Provider struct {
+	cfg      Config
+	endpoint string
+	client   *httpx.Client
+}
+
+// New returns a Provider, or nil if cfg.Key is empty.
+func New(cfg Config) *Provider {
+	if cfg.Key == "" {
 		return nil
 	}
-	p := &Provider{
-		Server: server,
-		Key:    key,
+	host := cfg.Server
+	if host == "" {
+		host = DefaultServer
 	}
-	if server != "" {
-		p.link = fmt.Sprintf("https://%s/push", server)
-	} else {
-		p.link = fmt.Sprintf("https://%s/push", "api.day.app")
+	return &Provider{
+		cfg:      cfg,
+		endpoint: "https://" + host,
+		client:   httpx.New(cfg.HTTPClient),
 	}
-	return p
 }
 
-func (p *Provider) Send(subject, content string) error {
-	type postData struct {
-		DeviceKey string `json:"device_key"`
-		Title     string `json:"title"`
-		Body      string `json:"body,omitempty"`
-		Badge     int    `json:"badge,omitempty"`
-		Sound     string `json:"sound,omitempty"`
-		Icon      string `json:"icon,omitempty"`
-		Group     string `json:"group,omitempty"`
-		URL       string `json:"link,omitempty"`
+// Name implements notifier.Provider.
+func (p *Provider) Name() string { return "bark" }
+
+type payload struct {
+	DeviceKey string `json:"device_key"`
+	Title     string `json:"title"`
+	Body      string `json:"body,omitempty"`
+	Badge     int    `json:"badge,omitempty"`
+	Sound     string `json:"sound,omitempty"`
+	Icon      string `json:"icon,omitempty"`
+	Group     string `json:"group,omitempty"`
+	URL       string `json:"link,omitempty"`
+}
+
+// Send implements notifier.Provider.
+func (p *Provider) Send(ctx context.Context, msg provider.Message) error {
+	pd := &payload{
+		DeviceKey: p.cfg.Key,
+		Title:     msg.Subject,
+		Body:      msg.Content,
+		Sound:     defaultSound,
 	}
-	pd := &postData{
-		DeviceKey: p.Key,
-		Title:     subject,
-		Body:      content,
-		Sound:     "alarm.caf",
+	if v := msg.ExtraString(KeySound); v != "" {
+		pd.Sound = v
 	}
-	data, err := json.Marshal(pd)
-	if err != nil {
-		return err
+	if v := msg.ExtraString(KeyIcon); v != "" {
+		pd.Icon = v
+	}
+	if v := msg.ExtraString(KeyGroup); v != "" {
+		pd.Group = v
+	}
+	if v := msg.ExtraString(KeyURL); v != "" {
+		pd.URL = v
+	}
+	if v := msg.ExtraInt(KeyBadge); v != 0 {
+		pd.Badge = v
 	}
 
-	resp, err := http.Post(p.link, "application/json; charset=utf-8", bytes.NewReader(data))
-	if err != nil {
-		return fmt.Errorf("send bark request failed %w", err)
-	}
-	result, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		// Close the body and check for errors
-		if cerr := resp.Body.Close(); cerr != nil {
-			// Handle the error, log it, etc. Here we're just logging.
-			log.Printf("failed to close response body: %v", cerr)
-		}
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		err = fmt.Errorf("statusCode: %d, body: %v", resp.StatusCode, string(result))
-		return fmt.Errorf("send bark message failed %w", err)
+	if err := p.client.PostJSON(ctx, p.endpoint+"/push", pd, nil); err != nil {
+		return fmt.Errorf("send bark: %w", err)
 	}
 	return nil
 }

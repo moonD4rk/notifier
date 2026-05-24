@@ -1,57 +1,59 @@
+// Package serverchan implements a notifier.Provider for Server 酱
+// (https://sct.ftqq.com/).
 package serverchan
 
 import (
-	"bytes"
-	"encoding/json"
+	"context"
 	"fmt"
-	"log"
 	"net/http"
+
+	"github.com/moond4rk/notifier/internal/httpx"
+	"github.com/moond4rk/notifier/provider"
 )
 
-type Provider struct {
-	UserID  string
-	SendKey string
+const defaultEndpoint = "https://sctapi.ftqq.com"
+
+// Config configures a Server 酱 provider. SendKey is required; UserID
+// can be empty for the modern SCT (Server酱·Turbo) API.
+type Config struct {
+	UserID     string
+	SendKey    string
+	HTTPClient *http.Client
 }
 
-func New(userID, sendKey string) *Provider {
-	if sendKey == "" {
+// Provider sends messages to a Server 酱 endpoint.
+type Provider struct {
+	cfg      Config
+	endpoint string
+	client   *httpx.Client
+}
+
+// New returns a Provider, or nil if cfg.SendKey is empty.
+func New(cfg Config) *Provider {
+	if cfg.SendKey == "" {
 		return nil
 	}
 	return &Provider{
-		UserID:  userID,
-		SendKey: sendKey,
+		cfg:      cfg,
+		endpoint: defaultEndpoint,
+		client:   httpx.New(cfg.HTTPClient),
 	}
 }
 
-var defaultHost = "sctapi.ftqq.com"
+// Name implements notifier.Provider.
+func (p *Provider) Name() string { return "serverchan" }
 
-func (p *Provider) Send(subject, content string) error {
-	link := fmt.Sprintf("https://%s/%s.send", defaultHost, p.SendKey)
-	type postData struct {
-		Text string `json:"text"`
-		Desp string `json:"desp"`
-	}
-	pd := &postData{
-		Text: subject,
-		Desp: content,
-	}
-	data, err := json.Marshal(pd)
-	if err != nil {
-		return fmt.Errorf("json marshal %w", err)
-	}
-	resp, err := http.Post(link, "application/json; charset=utf-8", bytes.NewReader(data))
-	if err != nil {
-		return fmt.Errorf("http post %w", err)
-	}
-	defer func() {
-		// Close the body and check for errors
-		if cerr := resp.Body.Close(); cerr != nil {
-			// Handle the error, log it, etc. Here we're just logging.
-			log.Printf("failed to close response body: %v", cerr)
-		}
-	}()
-	if resp.StatusCode != 200 {
-		return fmt.Errorf("send server chan failed %w", fmt.Errorf("http status code: %d", resp.StatusCode))
+type payload struct {
+	Text string `json:"text"`
+	Desp string `json:"desp"`
+}
+
+// Send implements notifier.Provider.
+func (p *Provider) Send(ctx context.Context, msg provider.Message) error {
+	link := fmt.Sprintf("%s/%s.send", p.endpoint, p.cfg.SendKey)
+	pd := &payload{Text: msg.Subject, Desp: msg.Content}
+	if err := p.client.PostJSON(ctx, link, pd, nil); err != nil {
+		return fmt.Errorf("send serverchan: %w", err)
 	}
 	return nil
 }

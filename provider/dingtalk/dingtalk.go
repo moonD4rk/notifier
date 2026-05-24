@@ -1,78 +1,135 @@
+// Package dingtalk implements a notifier.Provider for DingTalk group
+// robots (https://open.dingtalk.com/).
 package dingtalk
 
 import (
-	"bytes"
-	"encoding/json"
+	"context"
 	"fmt"
-	"io"
-	"log"
 	"net/http"
+	"net/url"
+	"strconv"
+	"time"
 
 	"github.com/moond4rk/notifier/internal/crypto"
+	"github.com/moond4rk/notifier/internal/httpx"
+	"github.com/moond4rk/notifier/provider"
 )
 
-type Provider struct {
-	Token  string `yaml:"token,omitempty"`
-	Secret string `yaml:"secret,omitempty"`
+const defaultEndpoint = "https://oapi.dingtalk.com/robot/send"
+
+// Extras keys consumed by this provider. AtMobiles / AtUserIDs accept
+// []string; AtAll accepts bool.
+const (
+	KeyAtMobiles = "dingtalk.at_mobiles"
+	KeyAtUserIDs = "dingtalk.at_user_ids"
+	KeyAtAll     = "dingtalk.at_all"
+)
+
+// Config configures a DingTalk provider. Token is required; Secret is
+// only required for bots configured with signed-request security.
+type Config struct {
+	Token      string
+	Secret     string
+	HTTPClient *http.Client
 }
 
-func New(token, secret string) *Provider {
-	if token == "" {
+// Provider sends messages to a DingTalk group robot.
+type Provider struct {
+	cfg      Config
+	endpoint string
+	client   *httpx.Client
+	now      func() time.Time
+}
+
+// New returns a Provider, or nil if cfg.Token is empty.
+func New(cfg Config) *Provider {
+	if cfg.Token == "" {
 		return nil
 	}
 	return &Provider{
-		Token:  token,
-		Secret: secret,
+		cfg:      cfg,
+		endpoint: defaultEndpoint,
+		client:   httpx.New(cfg.HTTPClient),
+		now:      time.Now,
 	}
 }
 
-func (p *Provider) Send(subject, content string) error {
-	data, err := buildPostData(subject, content)
-	if err != nil {
-		return fmt.Errorf("failed to create message %w", err)
-	}
-	link, err := crypto.DingTalkURL(p.Token, p.Secret)
-	if err != nil {
-		return fmt.Errorf("build dingtalk link error %w", err)
-	}
-	resp, err := http.Post(link, "application/json; charset=utf-8", bytes.NewReader(data))
-	if err != nil {
-		return fmt.Errorf("send dingtalk request failed %w", err)
-	}
-	result, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		// Close the body and check for errors
-		if cerr := resp.Body.Close(); cerr != nil {
-			// Handle the error, log it, etc. Here we're just logging.
-			log.Printf("failed to close response body: %v", cerr)
-		}
-	}()
+// Name implements notifier.Provider.
+func (p *Provider) Name() string { return "dingtalk" }
 
-	if resp.StatusCode != http.StatusOK {
-		err = fmt.Errorf("statusCode: %d, body: %v", resp.StatusCode, string(result))
-		return fmt.Errorf("dingtalk message response error %w", err)
+// Send implements notifier.Provider.
+func (p *Provider) Send(ctx context.Context, msg provider.Message) error {
+	link, err := p.signedURL()
+	if err != nil {
+		return fmt.Errorf("build dingtalk url: %w", err)
+	}
+	if err := p.client.PostJSON(ctx, link, buildPayload(msg), nil); err != nil {
+		return fmt.Errorf("send dingtalk: %w", err)
 	}
 	return nil
 }
 
-func buildPostData(subject, content string) ([]byte, error) {
-	content = fmt.Sprintf("### %s\n>%s", subject, content)
-	type postData struct {
-		MsgType  string `json:"msgtype"`
-		Markdown struct {
-			Title string `json:"title"`
-			Text  string `json:"text"`
-		} `json:"markdown"`
-	}
-	pd := &postData{MsgType: "markdown"}
-	pd.Markdown.Title = subject
-	pd.Markdown.Text = content
-	data, err := json.Marshal(pd)
+func (p *Provider) signedURL() (string, error) {
+	u, err := url.Parse(p.endpoint)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	return data, err
+	q := u.Query()
+	q.Set("access_token", p.cfg.Token)
+	if p.cfg.Secret != "" {
+		ts := p.now().UnixMilli()
+		q.Set("timestamp", strconv.FormatInt(ts, 10))
+		q.Set("sign", crypto.DingTalkSign(ts, p.cfg.Secret))
+	}
+	u.RawQuery = q.Encode()
+	return u.String(), nil
+}
+
+type payload struct {
+	MsgType  string   `json:"msgtype"`
+	Markdown markdown `json:"markdown"`
+	At       *atSpec  `json:"at,omitempty"`
+}
+
+type markdown struct {
+	Title string `json:"title"`
+	Text  string `json:"text"`
+}
+
+type atSpec struct {
+	AtMobiles []string `json:"atMobiles,omitempty"`
+	AtUserIDs []string `json:"atUserIds,omitempty"`
+	IsAtAll   bool     `json:"isAtAll,omitempty"`
+}
+
+func buildPayload(msg provider.Message) *payload {
+	text := msg.Content
+	if msg.Format != provider.FormatMarkdown {
+		text = fmt.Sprintf("### %s\n>%s", msg.Subject, msg.Content)
+	}
+	pd := &payload{
+		MsgType:  "markdown",
+		Markdown: markdown{Title: msg.Subject, Text: text},
+	}
+	if at := buildAt(msg); at != nil {
+		pd.At = at
+	}
+	return pd
+}
+
+func buildAt(msg provider.Message) *atSpec {
+	at := &atSpec{}
+	if v, ok := msg.Extras[KeyAtMobiles].([]string); ok {
+		at.AtMobiles = v
+	}
+	if v, ok := msg.Extras[KeyAtUserIDs].([]string); ok {
+		at.AtUserIDs = v
+	}
+	if v, ok := msg.Extras[KeyAtAll].(bool); ok {
+		at.IsAtAll = v
+	}
+	if len(at.AtMobiles) == 0 && len(at.AtUserIDs) == 0 && !at.IsAtAll {
+		return nil
+	}
+	return at
 }

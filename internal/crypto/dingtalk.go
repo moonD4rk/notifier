@@ -5,42 +5,16 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
-	"io"
-	"net/url"
-	"strconv"
-	"time"
 )
 
-const defaultDingTalkURL = `https://oapi.dingtalk.com/robot/send`
-
-func DingTalkURL(token, secret string) (string, error) {
-	timestamp := strconv.FormatInt(time.Now().Unix()*1000, 10)
-	u, _ := url.Parse(defaultDingTalkURL)
-	value := url.Values{}
-	value.Set("access_token", token)
-
-	if secret == "" {
-		u.RawQuery = value.Encode()
-		return u.String(), nil
-	}
-
-	sign, err := dingTalkSign(timestamp, secret)
-	if err != nil {
-		u.RawQuery = value.Encode()
-		return u.String(), err
-	}
-
-	value.Set("timestamp", timestamp)
-	value.Set("sign", sign)
-	u.RawQuery = value.Encode()
-	return u.String(), nil
-}
-
-func dingTalkSign(timestamp, secret string) (string, error) {
-	stringToSign := fmt.Sprintf("%s\n%s", timestamp, secret)
+// DingTalkSign returns the HMAC-SHA256 signature used by signed DingTalk
+// webhooks. timestampMs is Unix milliseconds; secret is the bot secret.
+//
+// See https://open.dingtalk.com/document/robots/customize-robot-security-settings
+// for the format.
+func DingTalkSign(timestampMs int64, secret string) string {
+	stringToSign := fmt.Sprintf("%d\n%s", timestampMs, secret)
 	h := hmac.New(sha256.New, []byte(secret))
-	if _, err := io.WriteString(h, stringToSign); err != nil {
-		return "", err
-	}
-	return base64.StdEncoding.EncodeToString(h.Sum(nil)), nil
+	_, _ = h.Write([]byte(stringToSign))
+	return base64.StdEncoding.EncodeToString(h.Sum(nil))
 }
